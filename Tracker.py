@@ -49,9 +49,6 @@ class Tracker(object):
                     result[2] = peers[pos]
                 result = sort_function(result)
 
-        for pos in range(len(result)):
-            result[pos] = result[pos].id
-
         return result
 
     def __seed_request(self, peers, peer_ref):
@@ -123,7 +120,17 @@ class Tracker(object):
         return self.__select_peers_push(peers, peer_ref)
 
     def __select_peers_push(self, peers, peer_ref):
-        return self.__select_peers(False, peers, peer_ref, self.__is_smaller, self.__sort_peers_push)
+        result = self.__select_peers(False, peers, peer_ref, self.__is_smaller, self.__sort_peers_push)
+
+        for pos in range(len(result)):
+            result[pos].increment_points(1)
+            result[pos] = result[pos].id
+
+        # activate applicant peer
+        applicant_peer = filter(lambda peer: peer.id == peer_ref, peers)[0]
+        applicant_peer.activate
+
+        return result
 
     def __is_smaller(self, peer1, peer2):
         """
@@ -173,7 +180,6 @@ class Tracker(object):
 
     def __select_peers_pull(self, peers, peer_ref):
         """
-
         :param peers:
         :param peer_ref:
         :return:
@@ -184,9 +190,18 @@ class Tracker(object):
 
         result = self.__select_peers(seed, peers, peer_ref, self.__is_bigger, self.__sort_peers_pull)
 
-        # change the Peer with fewer points by the Seed
-        if seed:
-            result[2] = peers[0]
+        # obtain the id of the select peers and include the seed if is necessary
+        if len(result) > 0 :
+            for pos in range(len(result)-1):
+                result[pos] = result[pos].id
+            # change the Peer with fewer points by the Seed
+            if len(result) == 3 and seed:
+                result[2] = peers[0].id
+
+        # increment applicant peer punctuation depending on selected peers and activate it
+        applicant_peer = filter(lambda peer: peer.id == peer_ref, peers)[0]
+        applicant_peer.increment_points(len(result))
+        applicant_peer.activate
 
         return result
 
@@ -219,6 +234,8 @@ class Tracker(object):
 
 class InfoPeer(object):
 
+    points = int
+
     def __init__(self, id, points):
         '''
 
@@ -229,21 +246,22 @@ class InfoPeer(object):
         self.points = points
         self.active = False
 
-    def increment_points(self):
+    def increment_points(self, points):
         '''
 
         :return:
         '''
-        self.points = int(self.points) + 1
+        self.points = self.points + points
 
-    def active(self):
+    def activate(self):
         '''
 
         :return: void
         '''
-        self.active = True
+        if not self.active:
+            self.active = True
 
-    def desactive(self):
+    def deactivate(self):
         '''
 
         :return:
