@@ -17,7 +17,7 @@ class Tracker(object):
 
     def __get_torrent_hash_code(self, torrent_hash):
         '''
-
+        private method to convert the torrent_hash
         :param torrent_hash:
         :return:
         '''
@@ -53,16 +53,16 @@ class Tracker(object):
 
     def __seed_request(self, peers, peer_ref):
         """
-
+        private method to check if the request is by seed
         :param peers:
         :param peer_ref:
         :return:
         """
-        return  peers[0].id == peer_ref and peers[0].points == -1
+        return  peers[0].id == peer_ref and self.__exist_seed(peers)
 
     def __exist_seed(self, peers):
         """
-
+        private method to check if exist the seed
         :param peers:
         :return:
         """
@@ -100,6 +100,7 @@ class Tracker(object):
     ##############################################################################################
     def get_peers_push(self, torrent_hash, peer_ref):
         """
+        Method to get peers for the push implementation
         TODO: comprobar si hay algun modo de obtener la referencia del peer sin pasarlo por parametro
         :param torrent_hash:
         :param peer_ref:
@@ -120,6 +121,12 @@ class Tracker(object):
         return self.__select_peers_push(peers, peer_ref)
 
     def __select_peers_push(self, peers, peer_ref):
+        """
+        private method to select the corresponces peers to push implementation
+        :param peers:
+        :param peer_ref:
+        :return:
+        """
         result = self.__select_peers(False, peers, peer_ref, self.__is_smaller, self.__sort_peers_push)
 
         for pos in range(len(result)):
@@ -134,7 +141,7 @@ class Tracker(object):
 
     def __is_smaller(self, peer1, peer2):
         """
-
+        private method to compare the punctuation of two peers
         :param peer1:
         :param peer2:
         :return:
@@ -143,7 +150,7 @@ class Tracker(object):
 
     def __sort_peers_push(self, peers):
         """
-
+        private method to sort the list of peers for push implementation
         :param peers:
         :return:
         """
@@ -151,7 +158,7 @@ class Tracker(object):
 
     def __getKey(self, peer):
         """
-
+        private method to get the key of sort function
         :param peer:
         :return:
         """
@@ -160,7 +167,7 @@ class Tracker(object):
     ##############################################################################################
     def get_peers_pull(self, torrent_hash, peer_ref):
         """
-
+        Method to get peers for the push implementation
         :param torrent_hash:
         :return:
         """
@@ -180,6 +187,7 @@ class Tracker(object):
 
     def __select_peers_pull(self, peers, peer_ref):
         """
+        private method to select peers for the pull implementation
         :param peers:
         :param peer_ref:
         :return:
@@ -207,16 +215,16 @@ class Tracker(object):
 
     def __is_bigger(self, peer1, peer2):
         """
-
+        private method to compar two peers punctuations
         :param peer1:
         :param peer2:
-        :return:
+        :return: true or false
         """
         return peer1.points > peer2.points
 
     def __sort_peers_pull(self, peers):
         """
-
+        Private method to sort list peers to pull action
         :param peers:
         :return:
         """
@@ -225,7 +233,7 @@ class Tracker(object):
     ##############################################################################################
     def get_peers_push_pull(self, torrent_hash, peer_ref):
         '''
-
+        Method to get peers for push-pull implementation
         :param torrent_hash:
         :return:
         '''
