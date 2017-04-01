@@ -1,10 +1,11 @@
 # coding=utf-8
 import pyactor
 import hashlib
+from InfoPeer import InfoPeer
 from pyactor.context import set_context, create_host, serve_forever, sleep
 
 class Tracker(object):
-    _tell = ['announce']
+    _tell = ['announce', 'get_peers_push']
     _ask = ['get_peers']
     _ref = ['announce']
 
@@ -14,6 +15,7 @@ class Tracker(object):
         Empty Parameters
         '''
         self.torrents = {}
+        self.initial_pos = []
 
     def __get_torrent_hash_code(self, torrent_hash):
         '''
@@ -22,6 +24,40 @@ class Tracker(object):
         :return:
         '''
         return hashlib.sha256(torrent_hash)
+
+    def __get_initial_pos(self, torrent_long, peers_initial_pos):
+
+        """
+
+        :param torrent_long: long of the torrent
+        :param peers: number of peers in the swarm, without the new peer nor seed
+        :return:
+        """
+
+        list_len = len(peers_initial_pos)
+        if list_len == 0:
+            result = 0
+        elif list_len < torrent_long:
+            n = list_len % torrent_long
+
+            # if is odd half_pos = m/2 else (m-1)/2
+            half_pos = (int)(torrent_long / 2)
+            if torrent_long % 2 == 1:
+                half_pos = half_pos + 1
+            if n < half_pos:
+                if (n % 4 == 0) and (n != 0):
+                    result  = half_pos / (4*n)
+                elif n % 2 == 0:
+                    result = peers_initial_pos[ n - 2] + (half_pos/2)
+                else:
+                    result = peers_initial_pos[n - 1] + half_pos
+            else:
+                result = peers_initial_pos[n - half_pos] + 1
+
+        peers_initial_pos.append(result)
+
+        return peers_initial_pos[list_len]
+
 
     #######################################################################################
     def __select_peers(self, seed, peers, peer_ref, comparative_funtion, sort_function):
@@ -39,14 +75,13 @@ class Tracker(object):
         ini_pos = 0
         if not seed:
             ini_pos = 1
-            print "no seed"
-
+        peers_ids = list(peers.keys())
         for pos in range(ini_pos, len(peers)):
-            if peer_ref != peers[pos].id:
+            if peer_ref.get_id() != peers[peers_ids[pos]].get_id():
                 if len(result) < 3:
-                    result.append(peers[pos])
-                elif comparative_funtion(peers[pos], result[2]):
-                    result[2] = peers[pos]
+                    result.append(peers[peers_ids[pos]])
+                elif comparative_funtion(peers[peers_ids[pos]].get_info_peer(), result[2].get_info_peer()):
+                    result[2] = peers[peers_ids[pos]]
                 result = sort_function(result)
 
         return result
@@ -72,7 +107,7 @@ class Tracker(object):
         return len(filter(lambda peer: peer.id == peer_ref, peers)) > 0
 
     ################################################################################
-    def anounce(self, torrent_hash, peer_ref):
+    def announce(self, torrent_hash, peer_ref):
         '''
         :TODO Verificar si el peer cambia su comportamiento:
                     - en caso positivo habría que guardar los NOMBRES de los peers
@@ -81,13 +116,22 @@ class Tracker(object):
         :param peer_ref: reference of the new peer
 
         '''
-        torrent_hash_code = self.__get_torrent_hash_code(torrent_hash)
-        peer = InfoPeer(peer_ref, 0)  # normal peer
-        if torrent_hash_code not in self.torrents:
-            peer.points = -1
-            self.torrents[torrent_hash_code] = [peer]
-        else:
-            self.torrents[torrent_hash_code].append(peer)
+        peer_id = peer_ref.get_id()
+        torrent_hash_code = torrent_hash
+        if torrent_hash_code in self.torrents\
+                and peer_id not in self.torrents[torrent_hash_code]:
+            self.torrents[torrent_hash_code][peer_id] = peer_ref
+            #print "Peer"
+            ini_pos = self.__get_initial_pos(14, self.initial_pos)
+            print ini_pos
+            peer_ref.add_info(torrent_hash_code, 0, ini_pos)
+
+        elif torrent_hash_code not in self.torrents:
+            # seed
+            peer_ref.add_info(torrent_hash_code, -1)
+            self.torrents = {torrent_hash_code: {peer_id:peer_ref}}
+            print self.torrents
+            print "Seed"
 
     def get_peers(self, torrent_hash, action):
         '''
@@ -101,24 +145,26 @@ class Tracker(object):
     def get_peers_push(self, torrent_hash, peer_ref):
         """
         Method to get peers for the push implementation
-        TODO: comprobar si hay algun modo de obtener la referencia del peer sin pasarlo por parametro
-        :param torrent_hash:
-        :param peer_ref:
+        :param torrent_hash: is the torrent hash
+        :param peer_ref: is reference of the applicant peer
         :return:
         """
-        torrent_hash_code = self.__get_torrent_hash_code(torrent_hash)
-        if torrent_hash_code not in self.torrents:
+        if torrent_hash not in self.torrents:
+            print "Error, Torrent not found"
             return []
 
         # get all the corresponding peers of torrent
-        peers = self.torrents[self.__get_torrent_hash_code(torrent_hash)]
+        peers = self.torrents[torrent_hash]
 
         # check if exist the applicant peer
-        if not self.__peer_in_list(peers, peer_ref):
+        if peer_ref.get_id() not in peers:
             return []
 
         #select peers with less punctuation
-        return self.__select_peers_push(peers, peer_ref)
+        result =  self.__select_peers_push(peers, peer_ref)
+        print "resultado "
+        print result
+        return result
 
     def __select_peers_push(self, peers, peer_ref):
         """
@@ -131,10 +177,10 @@ class Tracker(object):
 
         for pos in range(len(result)):
             result[pos].increment_points(1)
-            result[pos] = result[pos].id
+            result[pos] = result[pos]
 
         # activate applicant peer
-        applicant_peer = filter(lambda peer: peer.id == peer_ref, peers)[0]
+        applicant_peer = peers[peer_ref]
         applicant_peer.activate
 
         return result
@@ -162,7 +208,7 @@ class Tracker(object):
         :param peer:
         :return:
         """
-        return peer.points
+        return peer.get_info_peer().points
 
     ##############################################################################################
     def get_peers_pull(self, torrent_hash, peer_ref):
@@ -238,49 +284,3 @@ class Tracker(object):
         :return:
         '''
         print "TODO"
-
-
-class InfoPeer(object):
-
-    points = int
-
-    def __init__(self, id, points):
-        '''
-
-        :param id:
-        :param points:
-        '''
-        self.id = id
-        self.points = points
-        self.active = False
-
-    def increment_points(self, points):
-        '''
-
-        :return:
-        '''
-        self.points = self.points + points
-
-    def activate(self):
-        '''
-
-        :return: void
-        '''
-        if not self.active:
-            self.active = True
-
-    def deactivate(self):
-        '''
-
-        :return:
-        '''
-        self.active = False
-
-    def is_active(self):
-        '''
-
-        :return:
-        '''
-        if self.active:
-            return True
-        return False
