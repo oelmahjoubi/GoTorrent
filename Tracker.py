@@ -6,8 +6,10 @@ from pyactor.context import set_context, create_host, serve_forever, sleep
 
 class Tracker(object):
     _tell = ['announce', 'get_peers_push']
-    _ask = ['get_peers']
-    _ref = ['announce']
+    _ask = ['get_peers', 'get_torrent']
+    _ref = ['announce', 'get_peers_push']
+    __KEY_PEERS = "peers"
+    __KEY_SEEDS = "seeds"
 
     def __init__(self):
         '''
@@ -15,8 +17,11 @@ class Tracker(object):
         Empty Parameters
         '''
         self.torrents = {}
-        self.initial_pos = []
+        self.list_initial_pos = []
 
+    #temporal
+    def get_torrent(self):
+        return self.torrents
     def __get_torrent_hash_code(self, torrent_hash):
         '''
         private method to convert the torrent_hash
@@ -60,30 +65,31 @@ class Tracker(object):
 
 
     #######################################################################################
-    def __select_peers(self, seed, peers, peer_ref, comparative_funtion, sort_function):
+    def __select_peers(self, seeds, peers, peer_ref, max_peers ,comparative_funtion, sort_function):
         """
         private method to select peers with less punctuation
         Doesn't include seed nor applicant peer
         :param seed: Boolean indicating whether to consider Seed or not
         :param peers: list of peers
         :param peer_ref: applicant peer
+        :param max_peers: max number of peers, MINIM 1
         :param comparative_funtion: function to compare two peers
         :param sort_function: function to sort a list of peers
         :return: a list containing between 0 and 3 peers
         """
+        print "Estoy en el metodo select_peers"
         result = []
-        ini_pos = 0
-        if not seed:
-            ini_pos = 1
         peers_ids = list(peers.keys())
-        for pos in range(ini_pos, len(peers)):
-            if peer_ref.get_id() != peers[peers_ids[pos]].get_id():
-                if len(result) < 3:
-                    result.append(peers[peers_ids[pos]])
-                elif comparative_funtion(peers[peers_ids[pos]].get_info_peer(), result[2].get_info_peer()):
-                    result[2] = peers[peers_ids[pos]]
-                result = sort_function(result)
-
+        app_peer_id = peer_ref.get_id()
+        for peer_id in peers_ids:
+            if peer_id != app_peer_id:
+                if len(result) < max_peers:
+                    result.append(peers[peer_id])
+                else:
+                    result = sort_function(result)
+                    if comparative_funtion(peers[peer_id], result[max_peers-1]):
+                        result[max_peers-1] = peers[peer_id]
+        print "he acabado en el metodo get_peers_push"
         return result
 
     def __seed_request(self, peers, peer_ref):
@@ -116,22 +122,23 @@ class Tracker(object):
         :param peer_ref: reference of the new peer
 
         '''
+
         peer_id = peer_ref.get_id()
         torrent_hash_code = torrent_hash
         if torrent_hash_code in self.torrents\
                 and peer_id not in self.torrents[torrent_hash_code]:
-            self.torrents[torrent_hash_code][peer_id] = peer_ref
-            #print "Peer"
-            ini_pos = self.__get_initial_pos(14, self.initial_pos)
-            print ini_pos
+            if self.__KEY_PEERS not in self.torrents[torrent_hash_code]:
+                self.torrents[torrent_hash_code][self.__KEY_PEERS] = {}
+            self.torrents[torrent_hash_code][self.__KEY_PEERS][peer_id] = peer_ref
+
+            ini_pos = self.__get_initial_pos(14, self.list_initial_pos)
             peer_ref.add_info(torrent_hash_code, 0, ini_pos)
 
         elif torrent_hash_code not in self.torrents:
             # seed
             peer_ref.add_info(torrent_hash_code, -1)
-            self.torrents = {torrent_hash_code: {peer_id:peer_ref}}
-            print self.torrents
-            print "Seed"
+            self.torrents[torrent_hash_code] = {}
+            self.torrents[torrent_hash_code][self.__KEY_SEEDS] ={peer_id:peer_ref}
 
     def get_peers(self, torrent_hash, action):
         '''
@@ -149,21 +156,22 @@ class Tracker(object):
         :param peer_ref: is reference of the applicant peer
         :return:
         """
+        print "Estoy en el metodo get_peers_push"
         if torrent_hash not in self.torrents:
             print "Error, Torrent not found"
             return []
 
         # get all the corresponding peers of torrent
-        peers = self.torrents[torrent_hash]
+        peers = self.torrents[torrent_hash][self.__KEY_PEERS]
+        seeds = self.torrents[torrent_hash][self.__KEY_SEEDS]
 
         # check if exist the applicant peer
-        if peer_ref.get_id() not in peers:
+        peer_ref_id = peer_ref.get_id()
+        if peer_ref_id not in peers and peer_ref_id not in seeds:
             return []
 
         #select peers with less punctuation
-        result =  self.__select_peers_push(peers, peer_ref)
-        print "resultado "
-        print result
+        result = self.__select_peers_push(peers, peer_ref)
         return result
 
     def __select_peers_push(self, peers, peer_ref):
@@ -173,15 +181,12 @@ class Tracker(object):
         :param peer_ref:
         :return:
         """
-        result = self.__select_peers(False, peers, peer_ref, self.__is_smaller, self.__sort_peers_push)
-
-        for pos in range(len(result)):
-            result[pos].increment_points(1)
-            result[pos] = result[pos]
+        print "Estoy en el metodo select_peers_push"
+        max_peers = 3
+        result = self.__select_peers(None, peers, peer_ref, max_peers, self.__is_smaller, self.__sort_peers_push)
 
         # activate applicant peer
-        applicant_peer = peers[peer_ref]
-        applicant_peer.activate
+        peer_ref.get_info_peer().activate
 
         return result
 
@@ -192,7 +197,8 @@ class Tracker(object):
         :param peer2:
         :return:
         """
-        return peer1.points < peer2.points
+        print "en is_smaller"
+        return peer1.get_info_peer().points < peer2.get_info_peer().points
 
     def __sort_peers_push(self, peers):
         """
@@ -200,6 +206,7 @@ class Tracker(object):
         :param peers:
         :return:
         """
+        print "en sort_peers_push"
         return sorted(peers, key=self.__getKey)
 
     def __getKey(self, peer):
@@ -208,7 +215,10 @@ class Tracker(object):
         :param peer:
         :return:
         """
-        return peer.get_info_peer().points
+        print "en __getKey"
+        result = peer.get_info_peer().points
+        print "acabado __getKey"
+        return result
 
     ##############################################################################################
     def get_peers_pull(self, torrent_hash, peer_ref):

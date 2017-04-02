@@ -15,20 +15,23 @@ class InfoPeer(object):
         :param points:
         '''
         self.id = id
-        self.torrent_has  = torrent_hash
-        self.points = points
+        self.torrent_hash = torrent_hash
+        self.points_seed = 0
         self.active = False
+        self.points = points
 
     def add_ini_pos(self, ini_pos):
         self.ini_pos = ini_pos
 
-    def increment_points(self, points):
+    def increment_points_peer(self):
         '''
 
         :return:
         '''
-        self.points = self.points + points
+        self.points = self.points + 1
 
+    def increment_points_seed(self):
+        self.points_seed = self.points_seed + 1
     def activate(self):
         '''
 
