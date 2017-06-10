@@ -347,4 +347,3 @@ class Peer(object):
     def save_result(self):
         if (self._KEY_DATA in self.torrent) and (not self.seed):
             self.result_str = self.result_str + str(len(self.torrent[self._KEY_DATA]))
-

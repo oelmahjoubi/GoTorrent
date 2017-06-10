@@ -89,4 +89,3 @@ class Tracker(object):
         else:
             result = sample(peers, len(peers))
         return result
-

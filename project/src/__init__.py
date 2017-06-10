@@ -72,4 +72,3 @@ if __name__ == "__main__":
         peer.print_data()
     file.close()
     shutdown()
-
