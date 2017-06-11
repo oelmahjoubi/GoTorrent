@@ -7,7 +7,6 @@ from src.peer import Peer
 from src.tracker import Tracker
 
 
-
 class Test(unittest.TestCase):
 
     def setUp(self):
