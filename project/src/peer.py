@@ -6,7 +6,6 @@ from random import choice
 from pyactor.context import interval, later
 
 
-
 class Peer(object):
     _ask = ['print_data','get_num_chunks','set_tracker', 'be_seed','get_data',
             'pull_receive', 'get_urgent_chunks','get_lack_chunks','init_structs']

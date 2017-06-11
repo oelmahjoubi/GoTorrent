@@ -3,8 +3,9 @@
 """
 import unittest
 from pyactor.context import set_context, create_host, sleep, shutdown
-from src.tracker import Tracker
 from src.peer import Peer
+from src.tracker import Tracker
+
 
 
 class Test(unittest.TestCase):
