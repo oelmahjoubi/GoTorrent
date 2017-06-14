@@ -7,7 +7,7 @@ from pyactor.context import interval, later
 
 
 class Peer(object):
-    _ask = ['print_data','get_num_chunks','set_tracker', 'be_seed','get_data',
+    _ask = ['get_num_chunks','set_tracker', 'be_seed','get_data',
             'pull_receive', 'get_urgent_chunks','get_lack_chunks','init_structs']
     _tell = ['init_start', 'announce', 'announce_set_peers', 'push',
              'push_receive', 'pull', 'stop_interval',  "save_result"]
@@ -158,7 +158,7 @@ class Peer(object):
                 self.pull_interval.set()
         self.result_interval.set()
         if not self.seed and self.file:
-            self.file.write(self.result_str + "\n")
+            self.file.write(str(self._get_id()) + ' ' + self.result_str + ', data:'+ str(self._get_data()) + "\n")
 
     def announce_set_peers(self):
         self.announce_periodically()
@@ -181,14 +181,6 @@ class Peer(object):
         for i in range(1, 10, 1):
             chunks.append(i)
 
-
-    def print_data(self):
-        """
-        Metodo para imprimir los trozos que tiene el peer
-        :return: 
-        """
-        if self.torrent[self._KEY_DATA]:
-            print self.id, ' ',self.torrent[self._KEY_DATA]
 
     def announce(self, torrent_hash):
         '''
@@ -233,10 +225,10 @@ class Peer(object):
             if peer_id != self._get_id():
                 if peer_id not in self.ref_peers:
                     future = self.host.lookup(peer_id, future=True)
-                    self.ref_peers[peer_id] = future
+                    self.ref_peers[peer_id] = [future, False]
                     future.add_callback('_process_peer')
-                else:
-                    self._get_peers().append(self.ref_peers[peer_id])
+                elif self.ref_peers[peer_id][1]:
+                    self._get_peers().append(self.ref_peers[peer_id][0])
 
     def _process_peer(self, future):
         '''
@@ -245,8 +237,8 @@ class Peer(object):
         :return: 
         '''
         peer = future.result()
-        key = [key for key, value in self.ref_peers.iteritems() if value == future][0]
-        self.ref_peers[key] = peer
+        peer_id = [key for key, value in self.ref_peers.iteritems() if value == [future, False]][0]
+        self.ref_peers[peer_id] = [peer, True]
         self._get_peers().append(peer)
 
 

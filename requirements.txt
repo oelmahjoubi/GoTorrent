@@ -2,4 +2,3 @@ pep8
 pyactor
 gevent
 coverage
-tqdm
